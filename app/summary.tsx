@@ -44,28 +44,36 @@ export default function SummaryScreen() {
       const habitsMissed = habits.length - habitsCompleted;
       const totalWorkoutDuration = workouts.reduce((sum, w) => sum + w.duration, 0);
       const totalCalories = meals.reduce((sum, m) => sum + (m.calories || 0), 0);
+      const lastCheckIn = checkIns.length > 0 ? checkIns[0] : null;
 
-      // Call the backend API to generate summary using LLM
-      const response = await fetch('/api/generate-summary', {
+      // Call the backend API to generate summary using Groq LLM
+      const response = await fetch('/api/trpc/groq.generateSummary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          date: today,
-          activitiesCount: activities.length,
-          habitsCompleted,
-          habitsMissed,
-          workoutSummary: `${workouts.length} workouts, ${totalWorkoutDuration} minutes total`,
-          mealSummary: `${meals.length} meals, ${totalCalories} calories`,
-          goals: goals.filter(g => g.status !== 'completed').length,
-          checkIns: checkIns.length > 0 ? checkIns[0] : null,
+          json: {
+            activitiesCount: activities.length,
+            habitsCompleted,
+            habitsMissed,
+            workoutSummary: `${workouts.length} workouts, ${totalWorkoutDuration} minutes total`,
+            mealSummary: `${meals.length} meals, ${totalCalories} calories`,
+            goals: goals.filter(g => g.status !== 'completed').length,
+            mood: lastCheckIn?.mood,
+            energy: lastCheckIn?.energy,
+            sleep: lastCheckIn?.sleepDuration,
+            mainFocus: lastCheckIn?.mainFocus,
+            notes: lastCheckIn?.notes,
+          },
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate summary');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to generate summary');
       }
 
       const data = await response.json();
+      const result = data.result || {};
       const newSummary = {
         date: today,
         activitiesCompleted: activities.length,
@@ -74,9 +82,9 @@ export default function SummaryScreen() {
         workoutSummary: `${workouts.length} workouts, ${totalWorkoutDuration} minutes`,
         mealSummary: `${meals.length} meals logged`,
         goalProgress: `${goals.filter(g => g.status !== 'completed').length} active goals`,
-        productivityOverview: data.productivityOverview || 'Great work today!',
-        encouragingObservation: data.encouragingObservation || 'You\'re making progress!',
-        suggestions: data.suggestions || [
+        productivityOverview: result.productivityOverview || 'Great work today!',
+        encouragingObservation: result.encouragingObservation || 'You\'re making progress!',
+        suggestions: result.suggestions || [
           'Keep up the momentum tomorrow',
           'Stay hydrated throughout the day',
           'Get enough rest tonight',
@@ -88,7 +96,7 @@ export default function SummaryScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('Failed to generate summary:', err);
-      setError('Failed to generate summary. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to generate summary. Please try again.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -103,7 +111,7 @@ export default function SummaryScreen() {
           <View className="flex-row justify-between items-center">
             <View className="gap-1">
               <Text className="text-3xl font-bold text-foreground">AI Daily Summary</Text>
-              <Text className="text-sm text-muted">Your personalized insights</Text>
+              <Text className="text-sm text-muted">Powered by Groq LLM</Text>
             </View>
             <TouchableOpacity onPress={() => router.back()}>
               <MaterialIcons name="close" size={24} color={colors.foreground} />
@@ -193,7 +201,7 @@ export default function SummaryScreen() {
             <View className="flex-1 items-center justify-center gap-4">
               {error ? (
                 <>
-                  <Text className="text-error font-semibold">{error}</Text>
+                  <Text className="text-error font-semibold text-center">{error}</Text>
                   <TouchableOpacity
                     onPress={generateSummary}
                     disabled={loading}
@@ -205,12 +213,12 @@ export default function SummaryScreen() {
               ) : loading ? (
                 <>
                   <ActivityIndicator size="large" color={colors.primary} />
-                  <Text className="text-muted">Generating your summary...</Text>
+                  <Text className="text-muted">Generating your personalized summary with Groq AI...</Text>
                 </>
               ) : (
                 <>
                   <Text className="text-muted text-center">
-                    No summary yet. Generate one to see your daily insights!
+                    No summary yet. Generate one to see your personalized daily insights powered by Groq LLM!
                   </Text>
                   <TouchableOpacity
                     onPress={generateSummary}
