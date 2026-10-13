@@ -401,4 +401,4 @@ For issues, questions, or suggestions:
 
 **Happy tracking! 🎯**
 
-Made with ❤️ by the LifeLogAI team
+Made with ❤️ by the SujaL
